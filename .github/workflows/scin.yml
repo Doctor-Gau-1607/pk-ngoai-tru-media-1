@@ -1,0 +1,47 @@
+# Tải ảnh da từ kho SCIN (Google Research, giấy phép SCIN Data Use License) về thư mục hinh/
+# Chạy tay hoặc do tác vụ viết ca gọi (workflow_dispatch). Lần đầu tự tải bảng dữ liệu SCIN vào scin/.
+name: Tai anh SCIN
+on:
+  workflow_dispatch:
+    inputs:
+      anh:
+        description: 'Danh sách "đường_dẫn_SCIN=>MÃ_ẢNH", cách nhau dấu phẩy. Ví dụ dataset/images/123.png=>HA-DA-0001'
+        required: false
+        default: ''
+permissions:
+  contents: write
+concurrency:
+  group: scin
+  cancel-in-progress: false
+jobs:
+  tai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tai bang du lieu va anh
+        env:
+          ANH: ${{ github.event.inputs.anh }}
+        run: |
+          set -e
+          pip install --quiet pillow
+          B=https://storage.googleapis.com/dx-scin-public-data
+          mkdir -p scin hinh
+          for f in scin_cases.csv scin_labels.csv; do
+            [ -s scin/$f ] || curl -fsSL "$B/dataset/$f" -o scin/$f
+          done
+          python3 - <<'PY'
+          import os, io, urllib.request
+          from PIL import Image
+          B = 'https://storage.googleapis.com/dx-scin-public-data/'
+          for cap in [x.strip() for x in os.environ.get('ANH', '').split(',') if '=>' in x]:
+              src, ma = [y.strip() for y in cap.split('=>')]
+              raw = urllib.request.urlopen(B + src, timeout=60).read()
+              im = Image.open(io.BytesIO(raw)).convert('RGB'); im.thumbnail((1400, 1400))
+              im.save(f'hinh/{ma}.jpg', quality=86, optimize=True)
+              print('ok', src, '->', ma)
+          PY
+      - name: Day len repo
+        run: |
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add scin hinh
+          git diff --cached --quiet || (git commit -m "SCIN: tai anh ${{ github.event.inputs.anh }}" && git pull --rebase && git push)
