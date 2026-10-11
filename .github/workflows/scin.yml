@@ -8,6 +8,10 @@ on:
         description: 'Danh sách "đường_dẫn_SCIN=>MÃ_ẢNH", cách nhau dấu phẩy. Ví dụ dataset/images/123.png=>HA-DA-0001'
         required: false
         default: ''
+      xem_truoc:
+        description: 'true = chỉ đẩy lên nhánh xem-truoc (không lên trang web) để xem trước rồi mới chọn'
+        required: false
+        default: 'false'
 permissions:
   contents: write
 concurrency:
@@ -41,7 +45,15 @@ jobs:
               print('ok', src, '->', ma)
           PY
       - name: Day len repo
+        env:
+          XEM: ${{ github.event.inputs.xem_truoc }}
         run: |
           git config user.name "github-actions"; git config user.email "actions@github.com"
-          git add scin hinh
-          git diff --cached --quiet || (git commit -m "SCIN: tai anh ${{ github.event.inputs.anh }}" && git pull --rebase && git push)
+          if [ "$XEM" = "true" ]; then
+            git checkout -B xem-truoc
+            git add -f hinh; git commit -qm "Xem truoc: ${{ github.event.inputs.anh }}" || true
+            git push -f origin xem-truoc
+          else
+            git add scin hinh
+            git diff --cached --quiet || (git commit -m "SCIN: tai anh ${{ github.event.inputs.anh }}" && git pull --rebase && git push)
+          fi
